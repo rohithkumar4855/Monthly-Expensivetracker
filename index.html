@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Expense Tracker</title>
+    <style>
+        /* CSS Styling */
+        :root {
+            --primary: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg: #f3f4f6;
+            --card-bg: #ffffff;
+            --text: #1f2937;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { background-color: var(--bg); color: var(--text); padding: 20px; line-height: 1.5; }
+        
+        .container { max-width: 900px; margin: 0 auto; }
+        h1, h2, h3 { margin-bottom: 15px; }
+
+        /* Grid Layout */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } }
+
+        /* Cards and Forms */
+        .card { background-color: var(--card-bg); padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: 600; font-size: 14px; }
+        input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; }
+        
+        button { background-color: var(--primary); color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; font-weight: 600; width: 100%; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        .btn-danger { background-color: var(--danger); width: auto; padding: 5px 10px; font-size: 12px; }
+
+        /* Custom Dropdown Styling */
+        .custom-select-container { position: relative; width: 100%; user-select: none; }
+        .custom-trigger { padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; background: #fff; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+        .custom-options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10; display: none; max-height: 250px; overflow-y: auto; }
+        .custom-options.open { display: block; }
+        .custom-option { padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; transition: background 0.2s; border-bottom: 1px solid #f3f4f6; }
+        .custom-option:last-child { border-bottom: none; }
+        .custom-option:hover { background-color: #f9fafb; }
+        .custom-option span.cat-name { flex-grow: 1; }
+        .cat-delete-icon { color: var(--danger); font-size: 14px; padding: 2px 6px; border-radius: 4px; display: none; }
+        .custom-option:hover .cat-delete-icon { display: block; }
+        .cat-delete-icon:hover { background-color: #fee2e2; }
+
+        /* Dashboard */
+        .total-banner { background-color: var(--success); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 20px; }
+        .total-banner h2 { margin: 0; font-size: 2.5rem; }
+
+        /* Category Grid */
+        .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        .category-card { background: var(--card-bg); padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; }
+        .category-card.exceeded { border-color: var(--danger); background-color: #fef2f2; }
+        
+        .progress-bar { background-color: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
+        .progress-fill { background-color: var(--primary); height: 100%; transition: width 0.3s ease; }
+        .progress-fill.danger { background-color: var(--danger); }
+
+        /* Expense List */
+        .expense-list { list-style: none; }
+        .expense-list li { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #e5e7eb; }
+        .expense-list li:last-child { border-bottom: none; }
+        .expense-info { display: flex; flex-direction: column; }
+        .expense-amount { font-weight: bold; font-size: 16px; }
+
+        /* Toast Notifications */
+        #toast-container { position: fixed; top: 20px; right: 20px; z-index: 9999; }
+        .toast { background-color: var(--danger); color: white; padding: 15px 20px; border-radius: 6px; margin-bottom: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); opacity: 0; transform: translateX(100%); transition: all 0.3s ease; display: flex; align-items: center; gap: 10px;}
+        .toast.show { opacity: 1; transform: translateX(0); }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <div class="container">
+        <h1>Expense Tracker</h1>
+
+        <div class="total-banner">
+            <p>Total Expenses (This Month)</p>
+            <h2>₹<span id="total-amount">0.00</span></h2>
+        </div>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>Add Expense</h3>
+                <form id="expense-form">
+                    <div class="form-group">
+                        <label>Amount (₹)</label>
+                        <input type="number" id="exp-amount" step="0.01" required placeholder="0.00">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Category</label>
+                        <div class="custom-select-container" id="exp-dropdown-container">
+                            <div class="custom-trigger" id="exp-trigger">
+                                <span>Select Category</span> <span style="font-size:10px;">▼</span>
+                            </div>
+                            <div class="custom-options" id="exp-options"></div>
+                        </div>
+                        <input type="hidden" id="exp-category">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Date</label>
+                        <input type="date" id="exp-date" required>
+                    </div>
+                    <button type="submit">Add Expense</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h3>Set Monthly Limits</h3>
+                <form id="limit-form">
+                    <div class="form-group">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                            <label style="margin: 0;">Category</label>
+                            <span id="toggle-new-cat-btn" style="color: var(--primary); font-size: 12px; cursor: pointer; font-weight: 600;">➕ New Category</span>
+                        </div>
+                        
+                        <div id="lim-category-selection">
+                            <div class="custom-select-container" id="lim-dropdown-container">
+                                <div class="custom-trigger" id="lim-trigger">
+                                    <span>Select Category</span> <span style="font-size:10px;">▼</span>
+                                </div>
+                                <div class="custom-options" id="lim-options"></div>
+                            </div>
+                            <input type="hidden" id="lim-category">
+                        </div>
+                        
+                        <div id="custom-category-group" style="display: none;">
+                            <input type="text" id="custom-category" placeholder="Type new category name...">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Monthly Limit (₹)</label>
+                        <input type="number" id="lim-amount" step="0.01" required placeholder="0.00">
+                    </div>
+                    <button type="submit">Set Limit</button>
+                </form>
+            </div>
+        </div>
+
+        <h3>Category Breakdown (This Month)</h3>
+        <div class="category-grid" id="category-summary"></div>
+
+        <br>
+
+        <div class="grid-2">
+            <div class="card">
+                <h3>Daily Spending (This Month)</h3>
+                <ul class="expense-list" id="daily-summary"></ul>
+            </div>
+
+            <div class="card">
+                <h3>Recent Transactions</h3>
+                <ul class="expense-list" id="expense-history"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. App State
+        let expenses = JSON.parse(localStorage.getItem('expenses')) || [];
+        let limits = JSON.parse(localStorage.getItem('limits')) || {};
+        
+        // Master Category List
+        const baseCategories = ['Groceries', 'Dining Out', 'Transportation', 'Utilities', 'Entertainment', 'Shopping', 'Healthcare'];
+        let savedCategories = JSON.parse(localStorage.getItem('savedCategories')) || [...baseCategories];
+        
+        let notifiedCategories = new Set(); 
+        let isNewCategoryMode = false;
+
+        // 2. DOM Elements
+        const toggleNewCatBtn = document.getElementById('toggle-new-cat-btn');
+        const catSelectionDiv = document.getElementById('lim-category-selection');
+        const customCatGroupDiv = document.getElementById('custom-category-group');
+        const customCatInput = document.getElementById('custom-category');
+        
+        const expenseForm = document.getElementById('expense-form');
+        const limitForm = document.getElementById('limit-form');
+        const totalAmountEl = document.getElementById('total-amount');
+        const categorySummaryEl = document.getElementById('category-summary');
+        const expenseHistoryEl = document.getElementById('expense-history');
+        const dailySummaryEl = document.getElementById('daily-summary');
+        const toastContainer = document.getElementById('toast-container');
+
+        // 3. Initialization
+        function init() {
+            renderCustomDropdown('exp');
+            renderCustomDropdown('lim');
+            
+            document.getElementById('exp-date').valueAsDate = new Date();
+            
+            // Reset "New Category" toggle state on the right side
+            isNewCategoryMode = false;
+            catSelectionDiv.style.display = 'block';
+            customCatGroupDiv.style.display = 'none';
+            toggleNewCatBtn.innerText = '➕ New Category';
+            toggleNewCatBtn.style.color = 'var(--primary)';
+            customCatInput.required = false;
+            customCatInput.value = '';
+
+            updateDashboard();
+        }
+
+        // --- Custom Dropdown Logic ---
+        function renderCustomDropdown(type) {
+            const optionsContainer = document.getElementById(`${type}-options`);
+            const trigger = document.getElementById(`${type}-trigger`);
+            const hiddenInput = document.getElementById(`${type}-category`);
+            
+            optionsContainer.innerHTML = '';
+            
+            // Build category list
+            savedCategories.forEach(cat => {
+                const opt = document.createElement('div');
+                opt.className = 'custom-option';
+                opt.innerHTML = `<span class="cat-name">${cat}</span> <span class="cat-delete-icon" title="Delete Category">🗑️</span>`;
+                
+                // Handle Delete Icon Click
+                opt.querySelector('.cat-delete-icon').addEventListener('click', (e) => {
+                    e.stopPropagation(); // Prevents the click from selecting the option
+                    performDeletion(cat);
+                });
+                
+                // Handle Option Select Click
+                opt.addEventListener('click', () => {
+                    selectCategory(type, cat, trigger, hiddenInput, optionsContainer);
+                });
+                
+                optionsContainer.appendChild(opt);
+            });
+
+            // Ensure valid selection remains after re-renders
+            if (!hiddenInput.value || !savedCategories.includes(hiddenInput.value)) {
+                const defaultCat = savedCategories.length > 0 ? savedCategories[0] : '';
+                selectCategory(type, defaultCat, trigger, hiddenInput, optionsContainer, true);
+            } else {
+                selectCategory(type, hiddenInput.value, trigger, hiddenInput, optionsContainer, true);
+            }
+        }
+
+        function selectCategory(type, value, trigger, hiddenInput, optionsContainer, silent = false) {
+            hiddenInput.value = value;
+            trigger.innerHTML = `<span>${value || 'Select Category'}</span> <span style="font-size:10px;">▼</span>`;
+            if (!silent) optionsContainer.classList.remove('open');
+        }
+
+        // Toggle "New Category" UI (Now on the Right Side)
+        toggleNewCatBtn.addEventListener('click', () => {
+            isNewCategoryMode = !isNewCategoryMode;
+            if (isNewCategoryMode) {
+                catSelectionDiv.style.display = 'none';
+                customCatGroupDiv.style.display = 'block';
+                toggleNewCatBtn.innerText = 'Cancel New Category';
+                toggleNewCatBtn.style.color = 'var(--danger)';
+                customCatInput.required = true;
+                customCatInput.focus();
+            } else {
+                catSelectionDiv.style.display = 'block';
+                customCatGroupDiv.style.display = 'none';
+                toggleNewCatBtn.innerText = '➕ New Category';
+                toggleNewCatBtn.style.color = 'var(--primary)';
+                customCatInput.required = false;
+                customCatInput.value = '';
+            }
+        });
+
+        // Dropdown Toggle Event Listeners
+        document.getElementById('exp-trigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('exp-options').classList.toggle('open');
+            document.getElementById('lim-options').classList.remove('open');
+        });
+
+        document.getElementById('lim-trigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            document.getElementById('lim-options').classList.toggle('open');
+            document.getElementById('exp-options').classList.remove('open');
+        });
+
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', () => {
+            document.getElementById('exp-options').classList.remove('open');
+            document.getElementById('lim-options').classList.remove('open');
+        });
+
+        // --- Universal Delete Logic ---
+        function performDeletion(catToDelete) {
+            if (confirm(`Are you sure you want to completely remove "${catToDelete}"? Limits set for it will also be removed.`)) {
+                savedCategories = savedCategories.filter(c => c !== catToDelete);
+                delete limits[catToDelete]; 
+                
+                saveData();
+                init(); // Re-render everything
+                showToast(`Category "${catToDelete}" removed.`, false);
+            }
+        }
+
+        // 4. Form Submissions
+        
+        // Left Form: Add Expense
+        expenseForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('exp-amount').value);
+            const date = document.getElementById('exp-date').value;
+            const category = document.getElementById('exp-category').value;
+            
+            if (!category) {
+                showToast('Please select a category.', true);
+                return;
+            }
+
+            // Check Limits
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+            const targetDate = new Date(date);
+
+            if (targetDate.getMonth() === currentMonth && targetDate.getFullYear() === currentYear) {
+                const currentCategoryTotal = expenses
+                    .filter(exp => {
+                        const d = new Date(exp.date);
+                        return exp.category === category && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+                    })
+                    .reduce((sum, exp) => sum + exp.amount, 0);
+
+                const limit = limits[category] || 0;
+
+                if (limit > 0 && (currentCategoryTotal + amount) > limit) {
+                    const remaining = limit - currentCategoryTotal;
+                    showToast(`Blocked! This exceeds your ₹${limit.toFixed(2)} limit for ${category}. You have ₹${remaining.toFixed(2)} left.`, true);
+                    return; 
+                }
+            }
+
+            const expense = { id: Date.now(), amount, category, date };
+            expenses.push(expense);
+            saveData();
+            
+            this.reset();
+            init(); 
+            showToast(`Expense added successfully!`, false);
+        });
+
+        // Right Form: Set Monthly Limits
+        limitForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const amount = parseFloat(document.getElementById('lim-amount').value);
+            let category = '';
+
+            if (isNewCategoryMode) {
+                category = customCatInput.value.trim();
+                category = category.charAt(0).toUpperCase() + category.slice(1);
+
+                if (category === '') {
+                    showToast('Please enter a category name.', true);
+                    return;
+                }
+
+                if (!savedCategories.includes(category)) {
+                    savedCategories.push(category);
+                }
+            } else {
+                category = document.getElementById('lim-category').value;
+                if (!category) {
+                    showToast('Please select a category.', true);
+                    return;
+                }
+            }
+
+            limits[category] = amount;
+            saveData();
+            this.reset();
+            init(); // Resets UI and updates dropdowns with the new category
+            updateDashboard();
+            showToast(`Limit for ${category} set to ₹${amount.toFixed(2)}`, false);
+        });
+
+        // 5. Core Functions
+        window.editLimit = function(category) {
+            const currentLimit = limits[category] || 0;
+            const newLimit = prompt(`Enter new limit for ${category}\n(Enter 0 to completely remove the limit):`, currentLimit);
+            
+            if (newLimit !== null) { 
+                const parsedLimit = parseFloat(newLimit);
+                
+                if (!isNaN(parsedLimit) && parsedLimit > 0) {
+                    limits[category] = parsedLimit;
+                    showToast(`Limit for ${category} updated to ₹${parsedLimit.toFixed(2)}`, false);
+                } else {
+                    delete limits[category];
+                    showToast(`Limit for ${category} removed.`, false);
+                    notifiedCategories.delete(category); 
+                }
+                
+                saveData();
+                updateDashboard();
+            }
+        }
+
+        function deleteExpense(id) {
+            expenses = expenses.filter(exp => exp.id !== id);
+            saveData();
+            updateDashboard();
+        }
+
+        function saveData() {
+            localStorage.setItem('expenses', JSON.stringify(expenses));
+            localStorage.setItem('limits', JSON.stringify(limits));
+            localStorage.setItem('savedCategories', JSON.stringify(savedCategories));
+        }
+
+        function showToast(message, isError = true) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            if (!isError) toast.style.backgroundColor = 'var(--success)';
+            
+            toast.innerHTML = `<strong>${isError ? '⚠️' : '✅'}</strong> ${message}`;
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => toast.classList.add('show'), 10);
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 4000);
+        }
+
+        function updateDashboard() {
+            const now = new Date();
+            const currentMonth = now.getMonth();
+            const currentYear = now.getFullYear();
+
+            const monthlyExpenses = expenses.filter(exp => {
+                const expDate = new Date(exp.date);
+                return expDate.getMonth() === currentMonth && expDate.getFullYear() === currentYear;
+            });
+
+            const total = monthlyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+            totalAmountEl.innerText = total.toFixed(2);
+
+            // --- 1. Category Summary ---
+            const categoryTotals = {};
+            monthlyExpenses.forEach(exp => {
+                categoryTotals[exp.category] = (categoryTotals[exp.category] || 0) + exp.amount;
+            });
+
+            categorySummaryEl.innerHTML = '';
+            const activeCategories = new Set([...Object.keys(categoryTotals), ...Object.keys(limits)]);
+
+            activeCategories.forEach(category => {
+                const amount = categoryTotals[category] || 0;
+                const limit = limits[category] || 0;
+                const hasLimit = limit > 0;
+                const isExceeded = hasLimit && amount > limit;
+                
+                let percent = hasLimit ? (amount / limit) * 100 : 0;
+                if (percent > 100) percent = 100;
+
+                if (isExceeded && !notifiedCategories.has(category)) {
+                    showToast(`You have exceeded your monthly limit for ${category}!`);
+                    notifiedCategories.add(category);
+                } else if (!isExceeded) {
+                    notifiedCategories.delete(category);
+                }
+
+                categorySummaryEl.innerHTML += `
+                    <div class="category-card ${isExceeded ? 'exceeded' : ''}">
+                        <h4>${category}</h4>
+                        <div style="display: flex; justify-content: space-between; margin-top: 5px; align-items: center;">
+                            <span>₹${amount.toFixed(2)}</span>
+                            <span style="color: #6b7280; font-size: 12px; display: flex; align-items: center; gap: 8px;">
+                                ${hasLimit ? `Limit: ₹${limit.toFixed(2)}` : 'No Limit'}
+                                <button onclick="editLimit('${category}')" style="padding: 3px 8px; font-size: 11px; width: auto; background-color: #6b7280;">Edit</button>
+                            </span>
+                        </div>
+                        ${hasLimit ? `
+                            <div class="progress-bar">
+                                <div class="progress-fill ${isExceeded ? 'danger' : ''}" style="width: ${percent}%"></div>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            });
+
+            if(activeCategories.size === 0) {
+                categorySummaryEl.innerHTML = '<p style="grid-column: 1/-1; color: #6b7280;">No expenses or limits set for this month.</p>';
+            }
+
+            // --- 2. Daily Summary ---
+            const dailyTotals = {};
+            monthlyExpenses.forEach(exp => {
+                dailyTotals[exp.date] = (dailyTotals[exp.date] || 0) + exp.amount;
+            });
+
+            dailySummaryEl.innerHTML = '';
+            const sortedDates = Object.keys(dailyTotals).sort((a, b) => new Date(b) - new Date(a));
+
+            if (sortedDates.length === 0) {
+                dailySummaryEl.innerHTML = '<li><span style="color:#6b7280;">No daily data yet.</span></li>';
+            } else {
+                sortedDates.forEach(dateStr => {
+                    const dateObj = new Date(dateStr);
+                    const formattedDate = dateObj.toLocaleDateString('en-IN', { weekday: 'short', month: 'short', day: 'numeric' });
+                    
+                    dailySummaryEl.innerHTML += `
+                        <li>
+                            <span style="font-weight: 500; color: #4b5563;">${formattedDate}</span>
+                            <span style="font-weight: bold; color: var(--danger);">₹${dailyTotals[dateStr].toFixed(2)}</span>
+                        </li>
+                    `;
+                });
+            }
+
+            // --- 3. Recent History ---
+            expenseHistoryEl.innerHTML = '';
+            const sortedExpenses = [...expenses].sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 8);
+            
+            if (sortedExpenses.length === 0) {
+                expenseHistoryEl.innerHTML = '<li><span style="color:#6b7280;">No expenses recorded yet.</span></li>';
+            }
+
+            sortedExpenses.forEach(exp => {
+                expenseHistoryEl.innerHTML += `
+                    <li>
+                        <div class="expense-info">
+                            <span style="font-weight: 500;">${exp.category}</span>
+                            <span style="font-size: 12px; color: #6b7280;">${exp.date}</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            <span class="expense-amount">₹${exp.amount.toFixed(2)}</span>
+                            <button class="btn-danger" onclick="deleteExpense(${exp.id})">Delete</button>
+                        </div>
+                    </li>
+                `;
+            });
+        }
+
+        // Run setup
+        init();
+    </script>
+</body>
+</html>
