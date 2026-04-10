@@ -55,11 +55,11 @@
 
         /* Category Grid */
         .category-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
-        .category-card { background: var(--card-bg); padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; }
+        .category-card { background: var(--card-bg); padding: 15px; border-radius: 8px; border: 1px solid #e5e7eb; transition: all 0.3s ease; }
         .category-card.exceeded { border-color: var(--danger); background-color: #fef2f2; }
         
         .progress-bar { background-color: #e5e7eb; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 10px; }
-        .progress-fill { background-color: var(--primary); height: 100%; transition: width 0.3s ease; }
+        .progress-fill { background-color: var(--primary); height: 100%; transition: width 0.3s ease, background-color 0.3s ease; }
         .progress-fill.danger { background-color: var(--danger); }
 
         /* Expense List */
@@ -459,20 +459,28 @@
                 const amount = categoryTotals[category] || 0;
                 const limit = limits[category] || 0;
                 const hasLimit = limit > 0;
-                const isExceeded = hasLimit && amount > limit;
+                
+                // CHANGED: Added >= instead of > so it triggers red when exactly filled
+                const isFilledOrExceeded = hasLimit && amount >= limit;
                 
                 let percent = hasLimit ? (amount / limit) * 100 : 0;
                 if (percent > 100) percent = 100;
 
-                if (isExceeded && !notifiedCategories.has(category)) {
-                    showToast(`You have exceeded your monthly limit for ${category}!`);
+                // Update notifications to handle reaching limit vs exceeding
+                if (isFilledOrExceeded && !notifiedCategories.has(category)) {
+                    if (amount > limit) {
+                        showToast(`You have exceeded your monthly limit for ${category}!`);
+                    } else {
+                        showToast(`You have reached your monthly limit for ${category}!`);
+                    }
                     notifiedCategories.add(category);
-                } else if (!isExceeded) {
+                } else if (!isFilledOrExceeded) {
                     notifiedCategories.delete(category);
                 }
 
+                // Update HTML string to apply classes based on the new logic
                 categorySummaryEl.innerHTML += `
-                    <div class="category-card ${isExceeded ? 'exceeded' : ''}">
+                    <div class="category-card ${isFilledOrExceeded ? 'exceeded' : ''}">
                         <h4>${category}</h4>
                         <div style="display: flex; justify-content: space-between; margin-top: 5px; align-items: center;">
                             <span>₹${amount.toFixed(2)}</span>
@@ -483,7 +491,7 @@
                         </div>
                         ${hasLimit ? `
                             <div class="progress-bar">
-                                <div class="progress-fill ${isExceeded ? 'danger' : ''}" style="width: ${percent}%"></div>
+                                <div class="progress-fill ${isFilledOrExceeded ? 'danger' : ''}" style="width: ${percent}%"></div>
                             </div>
                         ` : ''}
                     </div>
